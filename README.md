@@ -25,7 +25,7 @@ tflint --config=../../../terraform/.tflint.hcl
 
 ## Terratest
 [Terratest](https://terratest.gruntwork.io/) is what is used in order to perform unit testing and integration testing on our Terraform IaC. The following tests are included in this repository:
-* Unit test to ensure we can run `terraform plan` against our Terraform module
+* Unit test to ensure we can run `terraform plan` against an example usage of our Terraform module
 * Version testing to ensure we can `terraform plan` with all the versions of Terraform and the AWS provider as specified by our version constraints in `versions.tf`
 * Integration testing which will actually spin up infrastructure in AWS using `terraform apply`, check for various attributes against the live resources and then cleanup the tests using `terraform destroy`
 

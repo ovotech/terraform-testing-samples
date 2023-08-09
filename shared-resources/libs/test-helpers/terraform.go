@@ -125,31 +125,7 @@ func UpdateModuleSourceAndVersionE(srcDir, module, src, ver string) error {
 		src = "../"
 	}
 
-	files, err := os.ReadDir(srcDir)
-	if err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		if !strings.HasSuffix(file.Name(), ".tf") {
-			continue
-		}
-
-		filename := fmt.Sprintf("%s/%s", srcDir, file.Name())
-		content, err := ioutil.ReadFile(filename)
-		if err != nil {
-			return err
-		}
-
-		f, diag := hclwrite.ParseConfig(content, file.Name(), hcl.Pos{Line: 1, Column: 1})
-		if diag.HasErrors() {
-			return errors.New(diag.Error())
-		}
-
+	return IterateTerraformInDirectory(srcDir, func(filename string, f *hclwrite.File) error {
 		hasChanges := false
 		for _, block := range f.Body().Blocks() {
 			if block.Type() != "module" {
@@ -175,10 +151,45 @@ func UpdateModuleSourceAndVersionE(srcDir, module, src, ver string) error {
 		}
 
 		if hasChanges {
-			err = ioutil.WriteFile(filename, f.Bytes(), 0666)
-			if err != nil {
+			if err := os.WriteFile(filename, f.Bytes(), 0666); err != nil {
 				return err
 			}
+		}
+
+		return nil
+	})
+}
+
+// IterateTerraformInDirectory will iterate over the files in a directory, running the
+// callback function for every Terraform file found.
+func IterateTerraformInDirectory(dir string, fn func(filename string, f *hclwrite.File) error) error {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if !strings.HasSuffix(file.Name(), ".tf") {
+			continue
+		}
+
+		filename := fmt.Sprintf("%s/%s", dir, file.Name())
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+
+		f, diag := hclwrite.ParseConfig(content, file.Name(), hcl.Pos{Line: 1, Column: 1})
+		if diag.HasErrors() {
+			return diag
+		}
+
+		if err = fn(filename, f); err != nil {
+			return err
 		}
 	}
 
@@ -258,31 +269,7 @@ func UpdateModuleSourceToAbsolutePath(t *testing.T, srcDir, module, path string)
 // * version is the new version to update the provider to.
 // * providerSource is the source of the provider being tested.
 func UpdateProviderVersionE(dir, provider, version string, providerSource string) error {
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		if !strings.HasSuffix(file.Name(), ".tf") {
-			continue
-		}
-
-		filename := fmt.Sprintf("%s/%s", dir, file.Name())
-		content, err := ioutil.ReadFile(filename)
-		if err != nil {
-			return err
-		}
-
-		f, diag := hclwrite.ParseConfig(content, file.Name(), hcl.Pos{Line: 1, Column: 1})
-		if diag.HasErrors() {
-			return errors.New(diag.Error())
-		}
-
+	return IterateTerraformInDirectory(dir, func(filename string, f *hclwrite.File) error {
 		hasChanges := false
 		for _, block := range f.Body().Blocks() {
 			if block.Type() != "terraform" {
@@ -304,17 +291,16 @@ func UpdateProviderVersionE(dir, provider, version string, providerSource string
 		}
 
 		if hasChanges {
-			err = ioutil.WriteFile(filename, f.Bytes(), 0666)
-			if err != nil {
+			if err := ioutil.WriteFile(filename, f.Bytes(), 0666); err != nil {
 				return err
 			}
 
 			lockfile := fmt.Sprintf("%s/.terraform.lock.hcl", dir)
 			_ = os.Remove(lockfile)
 		}
-	}
 
-	return nil
+		return nil
+	})
 }
 
 // UpdateProviderVersion will update the specified provider's version with the given value.

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	teststructure "github.com/gruntwork-io/terratest/modules/test-structure"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
@@ -75,4 +77,87 @@ func GetTerraformVersionConstraint(t *testing.T, srcDir string) string {
 		t.Fatalf(err.Error())
 	}
 	return constraint
+}
+
+func TerraformVersionsTest(t *testing.T, srcDir string, variables map[string]interface{}, environment_variables map[string]string) {
+	constraint := GetTerraformVersionConstraint(t, srcDir)
+	available := GetAvailableVersions(t, "terraform")
+	versions := GetMatchingVersions(t, constraint, available)
+
+	for _, version := range versions {
+		var tfOptions = &terraform.Options{}
+
+		if len(variables) > 0 {
+			tfOptions.Vars = variables
+		}
+		if len(environment_variables) > 0 {
+			tfOptions.EnvVars = environment_variables
+		}
+		version := version
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+
+			dst := teststructure.CopyTerraformFolderToTemp(t, srcDir, "")
+			UpdateModuleSourcesToLocalPaths(t, dst)
+			binaryPath := DownloadTerraformVersion(t, version)
+			tfOptions.TerraformDir = dst
+			tfOptions.TerraformBinary = binaryPath
+			terraform.InitAndPlan(t, tfOptions)
+		})
+	}
+}
+
+func AwsProviderVersionsTest(t *testing.T, srcDir string, variables map[string]interface{}, environment_variables map[string]string) {
+	constraint := GetProviderConstraint(t, srcDir, "aws")
+	available := GetAvailableVersions(t, "terraform-provider-aws")
+	versions := GetMatchingVersions(t, constraint, available)
+
+	for _, version := range versions {
+		var tfOptions = &terraform.Options{}
+
+		if len(variables) > 0 {
+			tfOptions.Vars = variables
+		}
+		if len(environment_variables) > 0 {
+			tfOptions.EnvVars = environment_variables
+		}
+
+		version := version
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+
+			dst := teststructure.CopyTerraformFolderToTemp(t, srcDir, "")
+			UpdateModuleSourcesToLocalPaths(t, dst)
+			UpdateProviderVersion(t, dst, "aws", version, "hashicorp/aws")
+			tfOptions.TerraformDir = dst
+			terraform.InitAndPlan(t, tfOptions)
+		})
+	}
+}
+
+func CloudflareProviderVersionsTest(t *testing.T, srcDir string, variables map[string]interface{}, environment_variables map[string]string) {
+	constraint := GetProviderConstraint(t, srcDir, "cloudflare")
+	available := GetAvailableVersions(t, "terraform-provider-cloudflare")
+	testVers := GetMatchingVersions(t, constraint, available)
+
+	for _, version := range testVers {
+		var tfOptions = &terraform.Options{}
+
+		if len(variables) > 0 {
+			tfOptions.Vars = variables
+		}
+		if len(environment_variables) > 0 {
+			tfOptions.EnvVars = environment_variables
+		}
+		version := version
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+
+			dst := teststructure.CopyTerraformFolderToTemp(t, srcDir, ".")
+			UpdateModuleSourcesToLocalPaths(t, dst)
+			UpdateProviderVersion(t, dst, "cloudflare", version, "cloudflare/cloudflare")
+			tfOptions.TerraformDir = dst
+			terraform.InitAndPlan(t, tfOptions)
+		})
+	}
 }

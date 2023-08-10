@@ -1,4 +1,4 @@
-module github.com/ovotech/terraform-testing-samples
+module github.com/ovotech/terraform-testing-samples/shared-resources/libs/test-helpers
 
 go 1.18
 
